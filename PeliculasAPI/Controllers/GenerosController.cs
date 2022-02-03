@@ -45,6 +45,19 @@ namespace PeliculasAPI.Controllers
             return generosDTO;
         }
 
+        [HttpGet("todos")]
+        public async Task<ActionResult<List<GeneroDTO>>> GetTodos()
+        {
+            var generos = await context.Generos.ToListAsync();
+
+            if (generos == null)
+            {
+                return NotFound();
+            }
+
+            return mapper.Map<List<GeneroDTO>>(generos);
+        }
+
         [HttpGet("{id:int}")]
         public async Task<ActionResult<GeneroDTO>> GetGenero(int id)
         {
