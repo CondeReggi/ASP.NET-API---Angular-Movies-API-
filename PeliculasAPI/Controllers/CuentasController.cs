@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -20,12 +21,14 @@ namespace PeliculasAPI.Controllers
         private readonly UserManager<IdentityUser> userMananger;
         private readonly IConfiguration configuration;
         private readonly SignInManager<IdentityUser> signInManager;
+        private readonly IMapper mapper;
 
-        public CuentasController(UserManager<IdentityUser> userMananger , IConfiguration configuration, SignInManager<IdentityUser> signInManager)
+        public CuentasController(UserManager<IdentityUser> userMananger , IConfiguration configuration, SignInManager<IdentityUser> signInManager, IMapper mapper)
         {
             this.userMananger = userMananger;
             this.configuration = configuration;
             this.signInManager = signInManager;
+            this.mapper = mapper;
         }
 
         [HttpPost("crear")]
@@ -38,6 +41,7 @@ namespace PeliculasAPI.Controllers
             };
 
             var resultado = await userMananger.CreateAsync(usuario, credenciales.password);
+
             if (resultado.Succeeded)
             {
                 return await ConstruirToken(credenciales);
@@ -55,6 +59,8 @@ namespace PeliculasAPI.Controllers
 
             if (resultado.Succeeded)
             {
+                //var dto = mapper.Map<CredencialesUsuario>(credenciales);
+                //return await ConstruirToken(dto);
                 return await ConstruirToken(credenciales);
             }
             else

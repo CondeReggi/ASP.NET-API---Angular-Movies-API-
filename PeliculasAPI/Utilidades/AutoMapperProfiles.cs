@@ -33,6 +33,8 @@ namespace PeliculasAPI.Utilidades
                 .ForMember( x => x.Generos , opciones => opciones.MapFrom(MapearPeliculasGeneros))
                 .ForMember( x => x.Actores , opciones => opciones.MapFrom(MapearPeliculasActores))
                 .ForMember( x => x.Cines , opciones => opciones.MapFrom(MapearPeliculasCine));
+
+            CreateMap<CredencialesUsuarioDTO, CredencialesUsuario>();
         }
 
         private List<CineDTO> MapearPeliculasCine ( Pelicula pelicula, PeliculaDTO peliculaDTO)
