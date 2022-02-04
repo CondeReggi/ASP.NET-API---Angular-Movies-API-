@@ -1,9 +1,13 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using PeliculasAPI.DTO;
+using PeliculasAPI.Utilidades;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
@@ -16,31 +20,62 @@ namespace PeliculasAPI.Controllers
 {
     [Route("api/cuentas")]
     [ApiController]
+
     public class CuentasController : ControllerBase
     {
-        private readonly UserManager<IdentityUser> userMananger;
-        private readonly IConfiguration configuration;
+        private readonly UserManager<IdentityUser> userManager;
         private readonly SignInManager<IdentityUser> signInManager;
+        private readonly IConfiguration configuration;
+        private readonly ApplicationDbContext context;
         private readonly IMapper mapper;
 
-        public CuentasController(UserManager<IdentityUser> userMananger , IConfiguration configuration, SignInManager<IdentityUser> signInManager, IMapper mapper)
+        public CuentasController(UserManager<IdentityUser> userManager,
+            SignInManager<IdentityUser> signInManager,
+            IConfiguration configuration,
+            ApplicationDbContext context,
+            IMapper mapper)
         {
-            this.userMananger = userMananger;
-            this.configuration = configuration;
+            this.userManager = userManager;
             this.signInManager = signInManager;
+            this.configuration = configuration;
+            this.context = context;
             this.mapper = mapper;
         }
 
-        [HttpPost("crear")]
-        public async Task<ActionResult<RespuestaAutenticacion>> Post([FromBody] CredencialesUsuario credenciales)
+        [HttpGet("listadoUsuarios")]
+        public async Task<ActionResult<List<UsuarioDTO>>> GetUsuarios([FromQuery] PaginacionDTO paginacionDTO)
         {
-            var usuario = new IdentityUser
-            {
-                UserName = credenciales.email,
-                Email = credenciales.email
-            };
+            var queryable = context.Users.AsQueryable();
+            await HttpContext.InsertarParametrosPaginacionEnCabecera(queryable);
+            var usuarios = await queryable.OrderBy(x => x.Email).Paginar(paginacionDTO).ToListAsync();
+            return mapper.Map<List<UsuarioDTO>>(usuarios);
+        }
 
-            var resultado = await userMananger.CreateAsync(usuario, credenciales.password);
+        [HttpPost("HacerAdmin")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "EsAdmin")]
+        public async Task<ActionResult> HacerAdmin([FromBody] string usuarioId)
+        {
+            var usuario = await userManager.FindByIdAsync(usuarioId);
+            await userManager.AddClaimAsync(usuario, new Claim("role", "admin"));
+            return NoContent();
+        }
+
+        [HttpPost("RemoverAdmin")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "EsAdmin")]
+        public async Task<ActionResult> RemoverAdmin([FromBody] string usuarioId)
+        {
+            var usuario = await userManager.FindByIdAsync(usuarioId);
+            await userManager.RemoveClaimAsync(usuario, new Claim("role", "admin"));
+            return NoContent();
+        }
+
+
+        [HttpPost("crear")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Policy = "EsAdmin")]
+        public async Task<ActionResult<RespuestaAutenticacion>> Crear([FromBody] CredencialesUsuario credenciales)
+        {
+            var usuario = new IdentityUser { UserName = credenciales.email, Email = credenciales.email };
+            var resultado = await userManager.CreateAsync(usuario, credenciales.password);
 
             if (resultado.Succeeded)
             {
@@ -55,37 +90,38 @@ namespace PeliculasAPI.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<RespuestaAutenticacion>> Login([FromBody] CredencialesUsuario credenciales)
         {
-            var resultado = await signInManager.PasswordSignInAsync(credenciales.email, credenciales.password, isPersistent: false, lockoutOnFailure: false);
+            var resultado = await signInManager.PasswordSignInAsync(credenciales.email, credenciales.password,
+                isPersistent: false, lockoutOnFailure: false);
 
             if (resultado.Succeeded)
             {
-                //var dto = mapper.Map<CredencialesUsuario>(credenciales);
-                //return await ConstruirToken(dto);
                 return await ConstruirToken(credenciales);
             }
             else
             {
-                return BadRequest("Login Incorrecto");
+                return BadRequest("Login incorrecto");
             }
         }
 
         private async Task<RespuestaAutenticacion> ConstruirToken(CredencialesUsuario credenciales)
         {
-            //Creacion de la lista de Claims
             var claims = new List<Claim>()
             {
                 new Claim("email", credenciales.email)
             };
-            var usuario = await userMananger.FindByEmailAsync(credenciales.email);
-            var claimsDB = await userMananger.GetClaimsAsync(usuario);
+
+            var usuario = await userManager.FindByEmailAsync(credenciales.email);
+            var claimsDB = await userManager.GetClaimsAsync(usuario);
+
             claims.AddRange(claimsDB);
 
-            //Creacion del JWT
             var llave = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["llavejwt"]));
             var creds = new SigningCredentials(llave, SecurityAlgorithms.HmacSha256);
 
-            var expiracion = DateTime.UtcNow.AddDays(185);
-            var token = new JwtSecurityToken(issuer: null, audience: null, claims: claims, expires: expiracion, signingCredentials: creds);
+            var expiracion = DateTime.UtcNow.AddYears(1);
+
+            var token = new JwtSecurityToken(issuer: null, audience: null, claims: claims,
+                expires: expiracion, signingCredentials: creds);
 
             return new RespuestaAutenticacion()
             {
@@ -93,6 +129,5 @@ namespace PeliculasAPI.Controllers
                 Expiracion = expiracion
             };
         }
-
     }
 }

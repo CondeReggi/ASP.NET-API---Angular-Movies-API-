@@ -8,10 +8,8 @@ namespace PeliculasAPI.DTO
 {
     public class CredencialesUsuarioDTO
     {
-        [EmailAddress]
-        [Required]
-        public string email { get; set; }
-        [Required]
-        public string password { get; set; }
+        [Required(ErrorMessage = "El campo {0} es requerido")]
+        [StringLength(maximumLength: 50)]
+        public string Nombre { get; set; }
     }
 }

@@ -9,5 +9,6 @@ namespace PeliculasAPI.DTO
     {
         public string Token { get; set; }
         public DateTime Expiracion { get; set; }
+        public int rol { get; set; }
     }
 }
